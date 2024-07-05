@@ -1,3 +1,7 @@
 *.bmp
 *.jpg:Zone.Identifier
 *.jpg
+*.png
+*Zone.Identifier
+*.avif
+bmpcv
