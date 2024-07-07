@@ -2,6 +2,8 @@
 #include <fstream>
 #include <vector>
 #include <cstring>
+#include <stack>
+#include <cmath>
 
 #pragma pack(push, 1)
 
@@ -142,7 +144,45 @@ void blurBMP(std::vector<std::vector<RGBTRIPLE>>& img){
 
 }
 
-std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>> img, float compressionScale, bool inverseColors, bool blur, bool sepia){
+std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int diffToleration, int shapeOrigin[2]){
+    int height = img.size(), width = img[0].size();
+    int originX = shapeOrigin[0], originY = shapeOrigin[1];
+    std::vector<std::vector<RGBTRIPLE>> shape_detected_img(height, std::vector<RGBTRIPLE>(width));
+
+    auto isWithinTolerance = [&](RGBTRIPLE a, RGBTRIPLE b) {
+        return std::abs(a.rgbtBlue - b.rgbtBlue) <= diffToleration &&
+               std::abs(a.rgbtGreen - b.rgbtGreen) <= diffToleration &&
+               std::abs(a.rgbtRed - b.rgbtRed) <= diffToleration;
+    };
+
+    std::vector<std::vector<bool>> visited(height, std::vector<bool>(width, false));
+    std::stack<std::pair<int, int>> stack;
+    stack.push({originX, originY});
+    RGBTRIPLE originColor = img[originX][originY];
+
+    while (!stack.empty()) {
+        auto [x, y] = stack.top();
+        stack.pop();
+
+        if (x < 0 || y < 0 || x >= height || y >= width || visited[x][y] || !isWithinTolerance(img[x][y], originColor)) {
+            continue;
+        }
+
+        visited[x][y] = true;
+
+        shape_detected_img[x][y].rgbtRed = img[x][y].rgbtRed;
+        shape_detected_img[x][y].rgbtGreen = img[x][y].rgbtGreen;
+        shape_detected_img[x][y].rgbtBlue = img[x][y].rgbtBlue;
+
+        stack.push({x + 1, y});
+        stack.push({x - 1, y});
+        stack.push({x, y + 1});
+        stack.push({x, y - 1});
+    }
+    return shape_detected_img;
+}
+
+std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia){
     std::vector<std::vector<RGBTRIPLE>> compressed_img;
 
     int new_width = int(img[0].size() / compressionScale);
@@ -244,8 +284,20 @@ int main(int argc, char *argv[]) {
     const bool inverseColors = std::strcmp(argv[3], "y") ? false : true;
     const bool blur = std::strcmp(argv[4], "y") ? false : true;
     const bool sepia = std::strcmp(argv[5], "y") ? false : true;
+    const bool detectShapes = std::strcmp(argv[6], "y") ? false : true;
 
     std::vector<std::vector<RGBTRIPLE>> compressed_img = compressBMP(img, std::stof(argv[2]), inverseColors, blur, sepia);
+
+    if(detectShapes){
+        std::ofstream ofile_shape_detected((std::string(argv[1]) + "shape-proccesed.bmp"), std::ios::binary);
+        int shapeOrigin[2] = {std::stoi(argv[7]), std::stoi(argv[8])};
+        int diffTolerance;
+        std::cout << "tolerance: ";
+        std::cin >> diffTolerance;
+        std::vector<std::vector<RGBTRIPLE>> shape_detected_img = shapeDetectorBMP(compressed_img, diffTolerance, shapeOrigin);
+        saveBMP(ofile_shape_detected, shape_detected_img);
+        ofile_shape_detected.close();
+    }
 
     saveBMP(ofile, compressed_img);
 
