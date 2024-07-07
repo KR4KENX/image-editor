@@ -6,16 +6,16 @@
 - sepia
 - detect shapes (enter (x,y) position of origin shape pixel and colors difference toleration)
 ![Alt text](example/ui.png)
-## Original photo
+## Original photo   
 ![Alt text](example/pies.bmp)
-- Compressing photo (5:1 in this ex.)
+### Compressing photo (5:1 in this ex.)   
 ![Alt text](example/pies-compressed.bmp)
-- Inversing colors
+### Inversing colors   
 ![Alt text](example/pies-inversed.bmp)
-- Blur
+### Blur   
 ![Alt text](example/pies-blured.bmp)
-- Sepia
+### Sepia   
 ![Alt text](example/pies-sepia.bmp)
-- Detecting shapes
+### Detecting shapes   
 ![Alt text](example/pies-shape.bmp)
 
