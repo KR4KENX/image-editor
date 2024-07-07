@@ -37,9 +37,9 @@ struct RGBTRIPLE {
 
 #pragma pack(pop)
 
-int max(std::vector<int> nums){
+int max(std::vector<int> nums) {
     int res = -1;
-    for (int num : nums){
+    for (int num : nums) {
         res = std::max(res, num);
     }
     return res;
@@ -49,7 +49,7 @@ int clamp(int value, int min, int max) {
     return std::max(min, std::min(max, value));
 }
 
-std::vector<std::vector<RGBTRIPLE>> readBMP(std::ifstream& file){
+std::vector<std::vector<RGBTRIPLE>> readBMP(std::ifstream& file) {
     BITMAPFILEHEADER fileHeader;
     BITMAPINFOHEADER infoHeader;
 
@@ -73,37 +73,38 @@ std::vector<std::vector<RGBTRIPLE>> readBMP(std::ifstream& file){
         for (int j = 0; j < width; j++) {
             file.read(reinterpret_cast<char*>(&pixels[i][j]), sizeof(RGBTRIPLE));
         }
-        file.ignore(padding); 
+        file.ignore(padding);
     }
     return pixels;
 }
-void colorBMP(std::vector<std::vector<RGBTRIPLE>>& img, bool inverseColors, int totalPixels, int x, int y, int sumBlue, int sumGreen, int sumRed){
-            if (inverseColors){
-                img[x][y].rgbtBlue = static_cast<uint8_t>(abs(max({sumRed, clamp(sumBlue+10, 0, 255), sumGreen})) / totalPixels);
-                img[x][y].rgbtGreen = static_cast<uint8_t>(abs(max({sumRed, sumBlue, clamp(sumGreen+10, 0, 255)})) / totalPixels);
-                img[x][y].rgbtRed = static_cast<uint8_t>(abs(max({clamp(sumRed+10, 0, 255), sumBlue, sumGreen})) / totalPixels);
-            }
-            else{
-                img[x][y].rgbtBlue = static_cast<uint8_t>(sumBlue / totalPixels);
-                img[x][y].rgbtGreen = static_cast<uint8_t>(sumGreen / totalPixels);
-                img[x][y].rgbtRed = static_cast<uint8_t>(sumRed / totalPixels);
-            }
+
+void colorBMP(std::vector<std::vector<RGBTRIPLE>>& img, bool inverseColors, int totalPixels, int x, int y, int sumBlue, int sumGreen, int sumRed) {
+    if (inverseColors) {
+        img[x][y].rgbtBlue = static_cast<uint8_t>(abs(max({sumRed, clamp(sumBlue + 10, 0, 255), sumGreen})) / totalPixels);
+        img[x][y].rgbtGreen = static_cast<uint8_t>(abs(max({sumRed, sumBlue, clamp(sumGreen + 10, 0, 255)})) / totalPixels);
+        img[x][y].rgbtRed = static_cast<uint8_t>(abs(max({clamp(sumRed + 10, 0, 255), sumBlue, sumGreen})) / totalPixels);
+    }
+    else {
+        img[x][y].rgbtBlue = static_cast<uint8_t>(sumBlue / totalPixels);
+        img[x][y].rgbtGreen = static_cast<uint8_t>(sumGreen / totalPixels);
+        img[x][y].rgbtRed = static_cast<uint8_t>(sumRed / totalPixels);
+    }
 }
 
-void sepiaBMP(std::vector<std::vector<RGBTRIPLE>>& img){
+void sepiaBMP(std::vector<std::vector<RGBTRIPLE>>& img) {
     const std::vector<std::vector<double>> transform_vector = {
         {0.393, 0.769, 0.189},
         {0.349, 0.686, 0.168},
         {0.272, 0.534, 0.131}
     };
-    for (int x = 0; x < img.size()-1; x++) {
-        for (int y = 0; y < img[0].size()-1; y++) {
-                double newRed = 0.0, newGreen = 0.0, newBlue = 0.0;
-                for (int i = 0; i < 3; i++) {
+    for (int x = 0; x < img.size(); x++) {
+        for (int y = 0; y < img[0].size(); y++) {
+            double newRed = 0.0, newGreen = 0.0, newBlue = 0.0;
+            for (int i = 0; i < 3; i++) {
                 newRed += img[x][y].rgbtRed * transform_vector[i][0];
                 newGreen += img[x][y].rgbtGreen * transform_vector[i][1];
                 newBlue += img[x][y].rgbtBlue * transform_vector[i][2];
-                }
+            }
             img[x][y].rgbtRed = static_cast<uint8_t>(clamp(int(newRed), 0, 255));
             img[x][y].rgbtGreen = static_cast<uint8_t>(clamp(int(newGreen), 0, 255));
             img[x][y].rgbtBlue = static_cast<uint8_t>(clamp(int(newBlue), 0, 255));
@@ -111,20 +112,20 @@ void sepiaBMP(std::vector<std::vector<RGBTRIPLE>>& img){
     }
 }
 
-void blurBMP(std::vector<std::vector<RGBTRIPLE>>& img){
+void blurBMP(std::vector<std::vector<RGBTRIPLE>>& img) {
     const std::vector<std::vector<double>> gauss_blur_matrix = {
         {0.015, 0.125, 0.015},
         {0.25, 0.0625, 0.25},
         {0.015, 0.125, 0.015}
     };
-    std::vector<std::vector<RGBTRIPLE>> temp_img = img; 
+    std::vector<std::vector<RGBTRIPLE>> temp_img = img;
 
-    for (int x = 0; x < img.size()-1; x++) {
-        for (int y = 0; y < img[0].size()-1; y++) {
+    for (int x = 0; x < img.size(); x++) {
+        for (int y = 0; y < img[0].size(); y++) {
             double blue = 0.0, green = 0.0, red = 0.0;
 
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 2; j++) {
+            for (int i = -1; i <= 1; i++) {
+                for (int j = -1; j <= 1; j++) {
                     int xi = x + i;
                     int yj = y + j;
                     if (xi >= 0 && xi < img.size() && yj >= 0 && yj < img[0].size()) {
@@ -141,10 +142,9 @@ void blurBMP(std::vector<std::vector<RGBTRIPLE>>& img){
         }
     }
     img = temp_img;
-
 }
 
-std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int diffToleration, int shapeOrigin[2]){
+std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int diffToleration, int shapeOrigin[2]) {
     int height = img.size(), width = img[0].size();
     int originX = shapeOrigin[0], originY = shapeOrigin[1];
     std::vector<std::vector<RGBTRIPLE>> shape_detected_img(height, std::vector<RGBTRIPLE>(width));
@@ -157,7 +157,7 @@ std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGB
 
     std::vector<std::vector<bool>> visited(height, std::vector<bool>(width, false));
     std::stack<std::pair<int, int>> stack;
-    stack.push({originX, originY});
+    stack.push({ originX, originY });
     RGBTRIPLE originColor = img[originX][originY];
 
     while (!stack.empty()) {
@@ -174,22 +174,22 @@ std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGB
         shape_detected_img[x][y].rgbtGreen = img[x][y].rgbtGreen;
         shape_detected_img[x][y].rgbtBlue = img[x][y].rgbtBlue;
 
-        stack.push({x + 1, y});
-        stack.push({x - 1, y});
-        stack.push({x, y + 1});
-        stack.push({x, y - 1});
+        stack.push({ x + 1, y });
+        stack.push({ x - 1, y });
+        stack.push({ x, y + 1 });
+        stack.push({ x, y - 1 });
     }
     return shape_detected_img;
 }
 
-std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia){
+std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia) {
     std::vector<std::vector<RGBTRIPLE>> compressed_img;
 
     int new_width = int(img[0].size() / compressionScale);
     int new_height = int(img.size() / compressionScale);
     std::cout << new_width << " : " << new_height << std::endl;
     compressed_img.resize(new_height);
-    if (compressionScale >= 1){
+    if (compressionScale >= 1) {
         for (int x = 0; x < new_height; ++x) {
             compressed_img[x].resize(new_width);
             for (int y = 0; y < new_width; ++y) {
@@ -206,21 +206,21 @@ std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPL
             }
         }
     }
-    else{
+    else {
         for (int x = 0; x < new_height; ++x) {
             compressed_img[x].resize(new_width);
             for (int y = 0; y < new_width; ++y) {
-                RGBTRIPLE origin_pixel = img[clamp(int(x*compressionScale), 0, img.size()-1)][clamp(int(y*compressionScale), 0, img.size()-1)];
+                RGBTRIPLE origin_pixel = img[clamp(int(x * compressionScale), 0, img.size() - 1)][clamp(int(y * compressionScale), 0, img[0].size() - 1)];
                 compressed_img[x][y].rgbtBlue = origin_pixel.rgbtBlue;
                 compressed_img[x][y].rgbtGreen = origin_pixel.rgbtGreen;
                 compressed_img[x][y].rgbtRed = origin_pixel.rgbtRed;
             }
         }
     }
-    if (blur){
+    if (blur) {
         blurBMP(compressed_img);
     }
-    if (sepia){
+    if (sepia) {
         sepiaBMP(compressed_img);
     }
 
@@ -260,48 +260,83 @@ void saveBMP(std::ofstream& file, const std::vector<std::vector<RGBTRIPLE>>& pix
         for (int j = 0; j < width; j++) {
             file.write(reinterpret_cast<const char*>(&pixels[i][j]), sizeof(RGBTRIPLE));
         }
-        char paddingBytes[3] = {0, 0, 0};
+        char paddingBytes[3] = { 0, 0, 0 };
         file.write(paddingBytes, padding);
     }
 }
 
-int main(int argc, char *argv[]) {
-    std::ifstream file(argv[1], std::ios::binary);
-    std::ofstream ofile((std::string(argv[1]) + "-proccesed.bmp"), std::ios::binary);
+void displayMenu() {
+    std::cout << "=== BMP Image Processor ===" << std::endl;
+    std::cout << "Enter the path to the BMP file: ";
+}
+
+int main() {
+    displayMenu();
+
+    std::string inputPath;
+    std::cin >> inputPath;
+
+    std::ifstream file(inputPath, std::ios::binary);
     if (!file) {
         std::cerr << "Unable to open input file" << std::endl;
         return 1;
     }
+
+    std::vector<std::vector<RGBTRIPLE>> img = readBMP(file);
+    file.close();
+
+    if (img.size() < 1) {
+        return 1;
+    }
+
+    float compressionScale;
+    std::cout << "Enter compression scale: ";
+    std::cin >> compressionScale;
+
+    char inverseColorsChar, blurChar, sepiaChar, detectShapesChar;
+    std::cout << "Inverse colors? (y/n): ";
+    std::cin >> inverseColorsChar;
+    std::cout << "Apply blur? (y/n): ";
+    std::cin >> blurChar;
+    std::cout << "Apply sepia? (y/n): ";
+    std::cin >> sepiaChar;
+    std::cout << "Detect shapes? (y/n): ";
+    std::cin >> detectShapesChar;
+
+    bool inverseColors = (inverseColorsChar == 'y');
+    bool blur = (blurChar == 'y');
+    bool sepia = (sepiaChar == 'y');
+    bool detectShapes = (detectShapesChar == 'y');
+
+    std::vector<std::vector<RGBTRIPLE>> compressed_img = compressBMP(img, compressionScale, inverseColors, blur, sepia);
+
+    if (detectShapes) {
+        int shapeOrigin[2];
+        std::cout << "Enter shape origin X coordinate: ";
+        std::cin >> shapeOrigin[0];
+        std::cout << "Enter shape origin Y coordinate: ";
+        std::cin >> shapeOrigin[1];
+        int diffTolerance;
+        std::cout << "Enter difference tolerance: ";
+        std::cin >> diffTolerance;
+
+        std::vector<std::vector<RGBTRIPLE>> shape_detected_img = shapeDetectorBMP(compressed_img, diffTolerance, shapeOrigin);
+        std::ofstream ofile_shape_detected(inputPath + "-shape-processed.bmp", std::ios::binary);
+        if (!ofile_shape_detected) {
+            std::cerr << "Unable to open output file" << std::endl;
+            return 1;
+        }
+        saveBMP(ofile_shape_detected, shape_detected_img);
+        ofile_shape_detected.close();
+    }
+
+    std::ofstream ofile(inputPath + "-processed.bmp", std::ios::binary);
     if (!ofile) {
         std::cerr << "Unable to open output file" << std::endl;
         return 1;
     }
 
-    std::vector<std::vector<RGBTRIPLE>> img = readBMP(file);
-
-    if (img.size() < 1) return 1;
-
-    const bool inverseColors = std::strcmp(argv[3], "y") ? false : true;
-    const bool blur = std::strcmp(argv[4], "y") ? false : true;
-    const bool sepia = std::strcmp(argv[5], "y") ? false : true;
-    const bool detectShapes = std::strcmp(argv[6], "y") ? false : true;
-
-    std::vector<std::vector<RGBTRIPLE>> compressed_img = compressBMP(img, std::stof(argv[2]), inverseColors, blur, sepia);
-
-    if(detectShapes){
-        std::ofstream ofile_shape_detected((std::string(argv[1]) + "shape-proccesed.bmp"), std::ios::binary);
-        int shapeOrigin[2] = {std::stoi(argv[7]), std::stoi(argv[8])};
-        int diffTolerance;
-        std::cout << "tolerance: ";
-        std::cin >> diffTolerance;
-        std::vector<std::vector<RGBTRIPLE>> shape_detected_img = shapeDetectorBMP(compressed_img, diffTolerance, shapeOrigin);
-        saveBMP(ofile_shape_detected, shape_detected_img);
-        ofile_shape_detected.close();
-    }
-
     saveBMP(ofile, compressed_img);
-
-    file.close();
     ofile.close();
 
     return 0;
