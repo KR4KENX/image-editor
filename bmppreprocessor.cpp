@@ -4,7 +4,7 @@
 #include <cstring>
 #include <stack>
 #include <cmath>
-
+#include <array>
 #pragma pack(push, 1)
 
 struct BITMAPFILEHEADER {
@@ -182,6 +182,45 @@ std::vector<std::vector<RGBTRIPLE>> shapeDetectorBMP(std::vector<std::vector<RGB
     return shape_detected_img;
 }
 
+std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE>>& img, int diffToleration, int skipRadius) {
+    int height = img.size(), width = img[0].size();
+    std::vector<std::vector<RGBTRIPLE>> mirror_img = img;
+    blurBMP(mirror_img);
+    auto isWithinTolerance = [&](RGBTRIPLE a, RGBTRIPLE b) {
+        return std::abs(a.rgbtBlue - b.rgbtBlue) > diffToleration ||
+               std::abs(a.rgbtGreen - b.rgbtGreen) > diffToleration ||
+               std::abs(a.rgbtRed - b.rgbtRed) > diffToleration;
+    };
+    auto isEdge = [&](std::array<int, 2> p1, std::array<int, 2> p2){
+    if (p1[0] < 0 || p2[0] < 0 || p1[0] >= height || p2[0] >= height || 
+        p1[1] < 0 || p2[1] < 0 || p1[1] >= width || p2[1] >= width) return false;
+    return isWithinTolerance(mirror_img[p1[0]][p1[1]], mirror_img[p2[0]][p2[1]]);
+    };
+    std::vector<std::vector<RGBTRIPLE>> contour_img(height, std::vector<RGBTRIPLE>(width));
+    std::vector<std::vector<bool>> skipMatrix(height, std::vector<bool>(width));
+    auto ignoreRadiusMatrixCreator = [height, width, skipRadius, &skipMatrix](std::array<int, 2> cords){
+        for (int x = cords[0]-skipRadius; x <= cords[0]+skipRadius; x++){
+            for (int y = cords[1]-skipRadius; y <= cords[1]+skipRadius; y++){
+                if (x < 0 || x >= height || y < 0 || y >= width) continue;
+                else{
+                    skipMatrix[x][y] = true;
+                }
+            }
+        }
+    };
+    for(int x = 0; x < height; x++){
+        for (int y = 0; y < width; y++){
+            if (isEdge({x, y}, {x, y+1}) || 
+            isEdge({x, y}, {x+1, y}) ||
+            isEdge({x, y}, {x-1, y}) ||
+            isEdge({x, y}, {x, y-1}) && !skipMatrix[x][y]) {
+                contour_img[x][y] = {255, 255, 255};
+            }
+    }
+    }
+    return contour_img;
+}
+
 std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia) {
     std::vector<std::vector<RGBTRIPLE>> compressed_img;
 
@@ -293,7 +332,7 @@ int main() {
     std::cout << "Enter compression scale: ";
     std::cin >> compressionScale;
 
-    char inverseColorsChar, blurChar, sepiaChar, detectShapesChar;
+    char inverseColorsChar, blurChar, sepiaChar, detectShapesChar, contourChar;
     std::cout << "Inverse colors? (y/n): ";
     std::cin >> inverseColorsChar;
     std::cout << "Apply blur? (y/n): ";
@@ -302,25 +341,27 @@ int main() {
     std::cin >> sepiaChar;
     std::cout << "Detect shapes? (y/n): ";
     std::cin >> detectShapesChar;
-
+    std::cout << "Draw contour? (y/n): ";
+    std::cin >> contourChar;
     bool inverseColors = (inverseColorsChar == 'y');
     bool blur = (blurChar == 'y');
     bool sepia = (sepiaChar == 'y');
     bool detectShapes = (detectShapesChar == 'y');
+    bool contour = (contourChar == 'y');
 
     std::vector<std::vector<RGBTRIPLE>> compressed_img = compressBMP(img, compressionScale, inverseColors, blur, sepia);
 
     if (detectShapes) {
-        int shapeOrigin[2];
-        std::cout << "Enter shape origin X coordinate: ";
-        std::cin >> shapeOrigin[0];
-        std::cout << "Enter shape origin Y coordinate: ";
-        std::cin >> shapeOrigin[1];
         int diffTolerance;
+        int origin[2];
         std::cout << "Enter difference tolerance: ";
         std::cin >> diffTolerance;
+        std::cout << "Enter origin X: ";
+        std::cin >> origin[0];
+        std::cout << "Enter origin Y: ";
+        std::cin >> origin[1];
 
-        std::vector<std::vector<RGBTRIPLE>> shape_detected_img = shapeDetectorBMP(compressed_img, diffTolerance, shapeOrigin);
+        std::vector<std::vector<RGBTRIPLE>> shape_detected_img = shapeDetectorBMP(compressed_img, diffTolerance, origin);
         std::ofstream ofile_shape_detected(inputPath + "-shape-processed.bmp", std::ios::binary);
         if (!ofile_shape_detected) {
             std::cerr << "Unable to open output file" << std::endl;
@@ -328,6 +369,23 @@ int main() {
         }
         saveBMP(ofile_shape_detected, shape_detected_img);
         ofile_shape_detected.close();
+    }
+    if (contour){
+        int diffTolerance;
+        int skipRadius;
+        std::cout << "Enter difference tolerance: ";
+        std::cin >> diffTolerance;
+        std::cout << "Enter skip radius: ";
+        std::cin >> skipRadius;
+
+        std::vector<std::vector<RGBTRIPLE>> contour_img = contourBMP(compressed_img, diffTolerance, skipRadius);
+        std::ofstream ofile_contour(inputPath + "-contour.bmp", std::ios::binary);
+        if (!ofile_contour) {
+            std::cerr << "Unable to open output file" << std::endl;
+            return 1;
+        }
+        saveBMP(ofile_contour, contour_img);
+        ofile_contour.close();
     }
 
     std::ofstream ofile(inputPath + "-processed.bmp", std::ios::binary);
