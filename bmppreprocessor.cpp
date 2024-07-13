@@ -187,9 +187,9 @@ std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE
     std::vector<std::vector<RGBTRIPLE>> mirror_img = img;
     blurBMP(mirror_img);
     auto isWithinTolerance = [&](RGBTRIPLE a, RGBTRIPLE b) {
-        return std::abs(a.rgbtBlue - b.rgbtBlue) > diffToleration ||
-               std::abs(a.rgbtGreen - b.rgbtGreen) > diffToleration ||
-               std::abs(a.rgbtRed - b.rgbtRed) > diffToleration;
+        return std::abs(b.rgbtBlue - a.rgbtBlue) > diffToleration ||
+               std::abs(b.rgbtRed - a.rgbtRed) > diffToleration ||
+               std::abs(b.rgbtGreen - a.rgbtGreen) > diffToleration;
     };
     auto isEdge = [&](std::array<int, 2> p1, std::array<int, 2> p2){
     if (p1[0] < 0 || p2[0] < 0 || p1[0] >= height || p2[0] >= height || 
@@ -197,8 +197,8 @@ std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE
     return isWithinTolerance(mirror_img[p1[0]][p1[1]], mirror_img[p2[0]][p2[1]]);
     };
     std::vector<std::vector<RGBTRIPLE>> contour_img(height, std::vector<RGBTRIPLE>(width));
-    std::vector<std::vector<bool>> skipMatrix(height, std::vector<bool>(width));
-    auto ignoreRadiusMatrixCreator = [height, width, skipRadius, &skipMatrix](std::array<int, 2> cords){
+    std::vector<std::vector<bool>> skipMatrix(height, std::vector<bool>(width, false));
+    auto ignoreRadiusMatrixAgent = [height, width, skipRadius, &skipMatrix](std::array<int, 2> cords){
         for (int x = cords[0]-skipRadius; x <= cords[0]+skipRadius; x++){
             for (int y = cords[1]-skipRadius; y <= cords[1]+skipRadius; y++){
                 if (x < 0 || x >= height || y < 0 || y >= width) continue;
@@ -210,11 +210,18 @@ std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE
     };
     for(int x = 0; x < height; x++){
         for (int y = 0; y < width; y++){
-            if (isEdge({x, y}, {x, y+1}) || 
+            if (
+            !skipMatrix[x][y] &&
+            (isEdge({x, y}, {x, y+1}) || 
             isEdge({x, y}, {x+1, y}) ||
             isEdge({x, y}, {x-1, y}) ||
-            isEdge({x, y}, {x, y-1}) && !skipMatrix[x][y]) {
+            isEdge({x, y}, {x, y-1}) || 
+            isEdge({x, y}, {x-1, y-1}) || 
+            isEdge({x, y}, {x+1, y-1}) || 
+            isEdge({x, y}, {x-1, y+1}) || 
+            isEdge({x, y}, {x+1, y+1}))) {
                 contour_img[x][y] = {255, 255, 255};
+                ignoreRadiusMatrixAgent({x, y});
             }
     }
     }

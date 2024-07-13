@@ -18,4 +18,7 @@
 ![Alt text](example/pies-sepia.bmp)
 ### Detecting shapes   
 ![Alt text](example/pies-shape.bmp)
+### Drawing contours in image
+![Alt text](example/kot.bmp)
+![Alt text](example/kot-contour.bmp)
 
