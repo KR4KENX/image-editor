@@ -5,6 +5,8 @@
 #include <stack>
 #include <cmath>
 #include <array>
+#include <variant>
+#include<functional>
 #pragma pack(push, 1)
 
 struct BITMAPFILEHEADER {
@@ -33,6 +35,11 @@ struct RGBTRIPLE {
     uint8_t rgbtBlue;
     uint8_t rgbtGreen;
     uint8_t rgbtRed;
+};
+
+struct CurveContainer {
+    int lineLenght;
+    std::vector<std::array<int, 2>> linePixels;
 };
 
 #pragma pack(pop)
@@ -228,6 +235,117 @@ std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE
     return contour_img;
 }
 
+std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int maxBlankStreak, int sprayRadius, int lineLengthMinimum) {
+    int height = img.size(), width = img[0].size();
+    
+    auto contoured_img = contourBMP(img, 35, 0);
+    
+    auto isPixelWhite = [&contoured_img, height, width](int x, int y) -> bool {
+        if (x < 0 || x >= height || y < 0 || y >= width) return false;
+        return (contoured_img[x][y].rgbtBlue == 255); // Assuming white pixels are (255, 255, 255)
+    };
+    
+    std::vector<std::vector<bool>> visited(height, std::vector<bool>(width, false));
+    
+    std::function<CurveContainer(std::array<int, 2>, int, std::vector<std::array<int, 2>>, int, std::array<int, 2>)> dfs;
+    dfs = [&](std::array<int, 2> cords, int actualBlankStreak, std::vector<std::array<int, 2>> path, int actualPathSum, std::array<int, 2> slope) -> CurveContainer {
+        if (actualBlankStreak >= maxBlankStreak) {
+            CurveContainer curveInfo = { actualPathSum, path };
+            return curveInfo;
+        }
+        
+        bool isLineContinuous = false;
+        for (int x = cords[0] + slope[0] - sprayRadius; x <= cords[0] + slope[0] + sprayRadius; x++) {
+            for (int y = cords[1] + slope[1] - sprayRadius; y <= cords[1] + slope[1] + sprayRadius; y++) {
+                if (isPixelWhite(x, y)) {
+                    isLineContinuous = true;
+                    visited[cords[0]][cords[1]] = true;
+                    actualBlankStreak = 0;
+                    break;
+                }
+            }
+            if (isLineContinuous) break;
+        }
+        
+        path.push_back(cords);
+        
+        return dfs({ cords[0] + slope[0], cords[1] + slope[1] }, actualBlankStreak + (isLineContinuous ? 0 : 1), path, actualPathSum + (isLineContinuous ? 1 : 0), slope);
+    };
+    
+    std::vector<std::array<int, 2>> lines;
+    
+    for (int x = 0; x < height; x++) {
+        for (int y = 0; y < width; y++) {
+            if (isPixelWhite(x, y) && !visited[x][y]) {
+                std::vector<CurveContainer> searchedLines;
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        if (!(dx == 0 && dy == 0)){
+                            CurveContainer curveInfo = dfs({ x, y }, 0, { {x, y} }, 0, { dx, dy });
+                            searchedLines.push_back(curveInfo);
+                        }
+                    }
+                }
+                CurveContainer bestCurve = {0, {}};
+
+                bool foundLongestPair = false;
+                int maxSumLength = 0;
+                std::array<int, 2> bestPairIndexes;
+
+                if (searchedLines[0].lineLenght + searchedLines[7].lineLenght > maxSumLength) {
+                    maxSumLength = searchedLines[0].lineLenght + searchedLines[7].lineLenght;
+                    bestPairIndexes = {0, 7};
+                    foundLongestPair = true;
+                }
+
+                if (searchedLines[1].lineLenght + searchedLines[6].lineLenght > maxSumLength) {
+                    maxSumLength = searchedLines[1].lineLenght + searchedLines[6].lineLenght;
+                    bestPairIndexes = {1, 6};
+                    foundLongestPair = true;
+                }
+
+                if (searchedLines[2].lineLenght + searchedLines[5].lineLenght > maxSumLength) {
+                    maxSumLength = searchedLines[2].lineLenght + searchedLines[5].lineLenght;
+                    bestPairIndexes = {2, 5};
+                    foundLongestPair = true;
+                }
+                if (searchedLines[3].lineLenght + searchedLines[4].lineLenght > maxSumLength) {
+                    maxSumLength = searchedLines[3].lineLenght + searchedLines[4].lineLenght;
+                    bestPairIndexes = {3, 4};
+                    foundLongestPair = true;
+                }
+
+                if (foundLongestPair && maxSumLength >= lineLengthMinimum) {
+                    bestCurve.lineLenght = maxSumLength;
+                    bestCurve.linePixels.clear();
+                    for(auto pixel : searchedLines[bestPairIndexes[0]].linePixels){
+                        bestCurve.linePixels.push_back(pixel);
+                    }
+                    for(auto pixel : searchedLines[bestPairIndexes[1]].linePixels){
+                        bestCurve.linePixels.push_back(pixel);
+                    }
+                }
+                std::cout << bestCurve.linePixels.size() << std::endl;
+
+                for (auto pixel : bestCurve.linePixels){
+                    lines.push_back(pixel);
+                }
+            }
+        }
+    }
+
+    for (const auto& coords : lines) {
+        int x = coords[0];
+        int y = coords[1];
+        if (x < 0 || x >= height || y < 0 || y >= width) continue;
+        contoured_img[x][y].rgbtBlue = 0;
+        contoured_img[x][y].rgbtGreen = 0;
+
+    }
+    
+    return contoured_img;
+}
+
 std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia) {
     std::vector<std::vector<RGBTRIPLE>> compressed_img;
 
@@ -311,6 +429,7 @@ void saveBMP(std::ofstream& file, const std::vector<std::vector<RGBTRIPLE>>& pix
     }
 }
 
+
 void displayMenu() {
     std::cout << "=== BMP Image Processor ===" << std::endl;
     std::cout << "Enter the path to the BMP file: ";
@@ -339,7 +458,7 @@ int main() {
     std::cout << "Enter compression scale: ";
     std::cin >> compressionScale;
 
-    char inverseColorsChar, blurChar, sepiaChar, detectShapesChar, contourChar;
+    char inverseColorsChar, blurChar, sepiaChar, detectShapesChar, contourChar, lineDetectChar;
     std::cout << "Inverse colors? (y/n): ";
     std::cin >> inverseColorsChar;
     std::cout << "Apply blur? (y/n): ";
@@ -350,11 +469,14 @@ int main() {
     std::cin >> detectShapesChar;
     std::cout << "Draw contour? (y/n): ";
     std::cin >> contourChar;
+    std::cout << "Detect lines? (y/n): ";
+    std::cin >> lineDetectChar;
     bool inverseColors = (inverseColorsChar == 'y');
     bool blur = (blurChar == 'y');
     bool sepia = (sepiaChar == 'y');
     bool detectShapes = (detectShapesChar == 'y');
     bool contour = (contourChar == 'y');
+    bool detectLine = (lineDetectChar == 'y');
 
     std::vector<std::vector<RGBTRIPLE>> compressed_img = compressBMP(img, compressionScale, inverseColors, blur, sepia);
 
@@ -393,6 +515,16 @@ int main() {
         }
         saveBMP(ofile_contour, contour_img);
         ofile_contour.close();
+    }
+    if(detectLine){
+        std::vector<std::vector<RGBTRIPLE>> lineDetected_img = lineDetectorBMP(compressed_img, 40, 1, 100);
+        std::ofstream ofile_line(inputPath + "-line.bmp", std::ios::binary);
+        if (!ofile_line) {
+            std::cerr << "Unable to open output file" << std::endl;
+            return 1;
+        }
+        saveBMP(ofile_line, lineDetected_img);
+        ofile_line.close();
     }
 
     std::ofstream ofile(inputPath + "-processed.bmp", std::ios::binary);
