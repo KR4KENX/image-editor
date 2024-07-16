@@ -235,10 +235,12 @@ std::vector<std::vector<RGBTRIPLE>> contourBMP(std::vector<std::vector<RGBTRIPLE
     return contour_img;
 }
 
-std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int maxBlankStreak, int sprayRadius, int lineLengthMinimum) {
+std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBTRIPLE>>& img, int maxBlankStreak, int lineLengthMinimum, int skipRadius) {
     int height = img.size(), width = img[0].size();
+    const int sprayRadius = 1;
     
     auto contoured_img = contourBMP(img, 35, 0);
+    auto lineDetected_img = img;
     
     auto isPixelWhite = [&contoured_img, height, width](int x, int y) -> bool {
         if (x < 0 || x >= height || y < 0 || y >= width) return false;
@@ -246,25 +248,37 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
     };
     
     std::vector<std::vector<bool>> visited(height, std::vector<bool>(width, false));
+    auto visitedRadiusMatrixAgent = [height, width, skipRadius, &visited](std::array<int, 2> cords){
+        for (int x = cords[0]-skipRadius; x <= cords[0]+skipRadius; x++){
+            for (int y = cords[1]-skipRadius; y <= cords[1]+skipRadius; y++){
+                if (x < 0 || x >= height || y < 0 || y >= width) continue;
+                else{
+                    visited[x][y] = true;
+                }
+            }
+        }
+    };
     
     std::function<CurveContainer(std::array<int, 2>, int, std::vector<std::array<int, 2>>, int, std::array<int, 2>)> dfs;
     dfs = [&](std::array<int, 2> cords, int actualBlankStreak, std::vector<std::array<int, 2>> path, int actualPathSum, std::array<int, 2> slope) -> CurveContainer {
-        if (actualBlankStreak >= maxBlankStreak) {
+        if (cords[0] < 0 || cords[0] >= height || cords[1] < 0 || cords[1] >= width || actualBlankStreak >= maxBlankStreak) {
             CurveContainer curveInfo = { actualPathSum, path };
             return curveInfo;
         }
         
         bool isLineContinuous = false;
         for (int x = cords[0] + slope[0] - sprayRadius; x <= cords[0] + slope[0] + sprayRadius; x++) {
-            for (int y = cords[1] + slope[1] - sprayRadius; y <= cords[1] + slope[1] + sprayRadius; y++) {
-                if (isPixelWhite(x, y)) {
-                    isLineContinuous = true;
-                    visited[cords[0]][cords[1]] = true;
-                    actualBlankStreak = 0;
-                    break;
+                for (int y = cords[1] + slope[1] - sprayRadius; y <= cords[1] + slope[1] + sprayRadius; y++) {
+                    if (isPixelWhite(x, y)) {
+                        cords[0] = x;
+                        cords[1] = y;
+                        isLineContinuous = true;
+                        visitedRadiusMatrixAgent({cords[0], cords[1]});
+                        actualBlankStreak = 0;
+                        break;
+                    }
                 }
-            }
-            if (isLineContinuous) break;
+                if (isLineContinuous) break;
         }
         
         path.push_back(cords);
@@ -325,7 +339,6 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
                         bestCurve.linePixels.push_back(pixel);
                     }
                 }
-                std::cout << bestCurve.linePixels.size() << std::endl;
 
                 for (auto pixel : bestCurve.linePixels){
                     lines.push_back(pixel);
@@ -338,12 +351,12 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
         int x = coords[0];
         int y = coords[1];
         if (x < 0 || x >= height || y < 0 || y >= width) continue;
-        contoured_img[x][y].rgbtBlue = 0;
-        contoured_img[x][y].rgbtGreen = 0;
+        lineDetected_img[x][y].rgbtBlue = 0;
+        lineDetected_img[x][y].rgbtGreen = 0;
 
     }
     
-    return contoured_img;
+    return lineDetected_img;
 }
 
 std::vector<std::vector<RGBTRIPLE>> compressBMP(std::vector<std::vector<RGBTRIPLE>>& img, float compressionScale, bool inverseColors, bool blur, bool sepia) {
@@ -517,7 +530,14 @@ int main() {
         ofile_contour.close();
     }
     if(detectLine){
-        std::vector<std::vector<RGBTRIPLE>> lineDetected_img = lineDetectorBMP(compressed_img, 40, 1, 100);
+        int maxBlankStreak, skipRadius, minimalLineLength;
+        std::cout << "Enter max blank streak: ";
+        std::cin >> maxBlankStreak;
+        std::cout << "Enter minimal line length: ";
+        std::cin >> minimalLineLength;
+        std::cout << "Enter skip radius: ";
+        std::cin >> skipRadius;
+        std::vector<std::vector<RGBTRIPLE>> lineDetected_img = lineDetectorBMP(compressed_img, maxBlankStreak, minimalLineLength, skipRadius);
         std::ofstream ofile_line(inputPath + "-line.bmp", std::ios::binary);
         if (!ofile_line) {
             std::cerr << "Unable to open output file" << std::endl;
