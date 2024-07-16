@@ -21,4 +21,5 @@
 ### Drawing contours in image
 ![Alt text](example/kot.bmp)
 ![Alt text](example/kot-contour.bmp)
-
+### Lines detecting
+![Alt text](example/road-line.bmp)
