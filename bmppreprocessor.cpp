@@ -7,6 +7,9 @@
 #include <array>
 #include <variant>
 #include<functional>
+#include <queue>
+#include <tuple>
+#include <climits> 
 #pragma pack(push, 1)
 
 struct BITMAPFILEHEADER {
@@ -48,6 +51,13 @@ int max(std::vector<int> nums) {
     int res = -1;
     for (int num : nums) {
         res = std::max(res, num);
+    }
+    return res;
+}
+int min(std::vector<int> nums) {
+    int res = INT_MAX;
+    for (int num : nums) {
+        res = std::min(res, num);
     }
     return res;
 }
@@ -259,15 +269,26 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
         }
     };
     
-    std::function<CurveContainer(std::array<int, 2>, int, std::vector<std::array<int, 2>>, int, std::array<int, 2>)> dfs;
-    dfs = [&](std::array<int, 2> cords, int actualBlankStreak, std::vector<std::array<int, 2>> path, int actualPathSum, std::array<int, 2> slope) -> CurveContainer {
-        if (cords[0] < 0 || cords[0] >= height || cords[1] < 0 || cords[1] >= width || actualBlankStreak >= maxBlankStreak) {
-            CurveContainer curveInfo = { actualPathSum, path };
-            return curveInfo;
-        }
-        
-        bool isLineContinuous = false;
-        for (int x = cords[0] + slope[0] - sprayRadius; x <= cords[0] + slope[0] + sprayRadius; x++) {
+    std::function<CurveContainer(std::array<int, 2>, int, std::vector<std::array<int, 2>>, int, std::array<int, 2>)> bfs;
+    bfs = [&](std::array<int, 2> startCords, int actualBlankStreak, std::vector<std::array<int, 2>> path, int actualPathSum, std::array<int, 2> slope) -> CurveContainer {
+        std::queue<std::tuple<std::array<int, 2>, int, std::vector<std::array<int, 2>>, int>> q;
+        q.push({startCords, actualBlankStreak, path, actualPathSum});
+
+        while (!q.empty()) {
+            auto [cords, actualBlankStreak, path, actualPathSum] = q.front();
+            q.pop();
+
+            // Check bounds and blank streak limit
+            if (cords[0] < 0 || cords[0] >= height || cords[1] < 0 || cords[1] >= width || actualBlankStreak >= maxBlankStreak) {
+                int elementsToRemove = min({maxBlankStreak, path.size()});
+                for (int i = 0; i <= elementsToRemove-1; i++){
+                    path.pop_back();
+                }
+                return {actualPathSum-elementsToRemove-1, path};
+            }
+
+            bool isLineContinuous = false;
+            for (int x = cords[0] + slope[0] - sprayRadius; x <= cords[0] + slope[0] + sprayRadius; x++) {
                 for (int y = cords[1] + slope[1] - sprayRadius; y <= cords[1] + slope[1] + sprayRadius; y++) {
                     if (isPixelWhite(x, y)) {
                         cords[0] = x;
@@ -279,11 +300,14 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
                     }
                 }
                 if (isLineContinuous) break;
+            }
+
+            path.push_back(cords);
+            q.push({{cords[0] + slope[0], cords[1] + slope[1]}, actualBlankStreak + (isLineContinuous ? 0 : 1), path, actualPathSum + (isLineContinuous ? 1 : 0)});
         }
-        
-        path.push_back(cords);
-        
-        return dfs({ cords[0] + slope[0], cords[1] + slope[1] }, actualBlankStreak + (isLineContinuous ? 0 : 1), path, actualPathSum + (isLineContinuous ? 1 : 0), slope);
+
+        // In case the loop exits without returning, which should not happen with the given conditions
+        return {0, {}};
     };
     
     std::vector<std::array<int, 2>> lines;
@@ -295,7 +319,7 @@ std::vector<std::vector<RGBTRIPLE>> lineDetectorBMP(std::vector<std::vector<RGBT
                 for (int dx = -1; dx <= 1; dx++) {
                     for (int dy = -1; dy <= 1; dy++) {
                         if (!(dx == 0 && dy == 0)){
-                            CurveContainer curveInfo = dfs({ x, y }, 0, { {x, y} }, 0, { dx, dy });
+                            CurveContainer curveInfo = bfs({ x, y }, 0, { {x, y} }, 0, { dx, dy });
                             searchedLines.push_back(curveInfo);
                         }
                     }
